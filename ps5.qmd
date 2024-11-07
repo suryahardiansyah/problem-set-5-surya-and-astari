@@ -126,9 +126,186 @@ print(df.head())
 ### 1. Turning the scraper into a function 
 
 * a. Pseudo-Code (PARTNER 2)
+```
+DEFINE FUNCTION scrape_enforcement_actions(start_month, start_year)
+
+1. Check if start year is valid:
+IF start_year is before 2013:
+Print a message: "Please restrict the start year to >= 2013"
+RETURN (exit the function early)
+
+2. Initialize variables:
+SET results to an empty list (this will hold our scraped data)
+SET start_date to the first day of start_month in start_year
+SET current_date to today's date
+
+3. Begin scraping from page 1:
+SET page to 1 (we'll start at the first page)
+
+4. Start looping through pages:
+WHILE True (this will keep going until we break out):
+- SET url to the enforcement page for the current page
+- Print: "Scraping {url}..."
+- GET the page content and parse it with BeautifulSoup
+
+5. Find all enforcement action entries on the page:
+- SET containers to all div elements with a specific class (these hold each enforcement action)
+
+6. If no containers are found, stop:
+- IF containers is empty:
+    - BREAK the loop (we're done scraping)
+
+7. Process each container found on the page:
+- FOR EACH container in containers:
+    - Extract:
+        - title from the heading
+        - date from a specific span tag
+        - category from a list tag
+        - link from the anchor tag's URL
+    - IF date is missing, skip to the next container
+
+8. Convert and check date:
+- Convert date to a datetime object (date_obj)
+- IF date_obj is earlier than start_date:
+        - Print: "Encountered data older than the specified start date. Stopping scrape."
+        - BREAK the loop (no need to look further)
+
+9. If date is within range, save data:
+- IF start_date <= date_obj <= current_date:
+        - Add title, date, category, and link to results
+
+10. Go to the next page:
+- Increment page by 1
+- WAIT for a second to avoid overloading the site
+
+11. Retrieve agency names:
+- FOR EACH link in results:
+    - Call a separate function to retrieve the agency name from the link
+    - Append the agency name to the corresponding entry in results
+
+12. Save results as CSV:
+- Convert results to a DataFrame
+- Save as a CSV file named with the given start_year and start_month
+- Print: "Data saved to [filename]"
+```
+
+In this way, we use a `while` loop to iterate through pages until we reach a stopping condition (either no more relevant data or data older than the start date). This structure allows us to handle the pages dynamically, stopping once we’ve collected all the needed data without requiring a predefined number of iterations.
 
 
 * b. Create Dynamic Scraper (PARTNER 2)
+```{python}
+import time
+from datetime import datetime
+
+# Function to extract agency information from a given link
+def extract_agency_name(link):
+    response = requests.get(link)
+    soup = BeautifulSoup(response.text, 'lxml')
+    
+    # Find the div containing the action details
+    details_div = soup.find('div', class_="margin-top-5 padding-y-3 border-y-1px border-base-lighter")
+    if details_div:
+        # Find all <li> elements within the div
+        li_elements = details_div.find_all('li')
+        for li in li_elements:
+            # Check if the <li> contains 'Agency:' and extract the text after it
+            if 'Agency:' in li.get_text():
+                return li.get_text().replace('Agency:', '').strip()
+    
+    return 'N/A'
+
+# Function to scrape enforcement actions starting from a specific month/year
+def scrape_enforcement_actions(start_month, start_year):
+    # Ensure start date is within range
+    if start_year < 2013:
+        print("Please restrict the start year to >= 2013")
+        return
+
+    # Initialize variables
+    results = []
+    start_date = datetime(start_year, start_month, 1)
+    current_date = datetime.now()
+
+    # Start from page 1 and continue ascendingly
+    page = 1
+    while True:
+        url = f"https://oig.hhs.gov/fraud/enforcement/?page={page}"
+        print(f"Scraping {url}...")
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'lxml')
+
+        # Find all enforcement actions containers
+        containers = soup.find_all('div', class_="usa-card__container")
+
+        # Stop if there are no containers
+        if not containers:
+            break
+
+        # Extract data from each container on the page
+        for container in containers:
+            title_elem = container.find('h2', class_="usa-card__heading")
+            date_elem = container.find('span', class_="text-base-dark padding-right-105")
+            category_elem = container.find('li', class_="display-inline-block usa-tag text-no-lowercase text-base-darkest bg-base-lightest margin-right-1")
+            link_elem = container.find('a', href=True)
+
+            # Extract and validate each element
+            title = title_elem.get_text(strip=True) if title_elem else "N/A"
+            date = date_elem.get_text(strip=True) if date_elem else None
+            category = category_elem.get_text(strip=True) if category_elem else "N/A"
+            link = "https://oig.hhs.gov" + link_elem['href'] if link_elem else "N/A"
+
+            # Only proceed if the date is present
+            if date:
+                # Convert date string to datetime object
+                date_obj = datetime.strptime(date, "%B %d, %Y")
+
+                # Stop scraping if the date is older than the start date
+                if date_obj < start_date:
+                    print("Encountered data older than the specified start date. Stopping scrape.")
+                    break
+
+                # Append data if it's within the range
+                if start_date <= date_obj <= current_date:
+                    results.append({
+                        'Title': title,
+                        'Date': date,
+                        'Category': category,
+                        'Link': link,
+                        'Agency': None
+                    })
+
+        # Check if we stopped due to an older date and should break the loop
+        if containers and date and date_obj < start_date:
+            break
+
+        # Move to the next page and wait before the next request
+        page += 1
+        time.sleep(1)
+
+    # Second phase: Retrieve agency names
+    for entry in results:
+        entry['Agency'] = extract_agency_name(entry['Link'])
+
+    # Convert results to DataFrame
+    df = pd.DataFrame(results)
+
+    # Save the DataFrame as CSV
+    output_filename = f"enforcement_actions_{start_year}_{start_month}.csv"
+    df.to_csv(output_filename, index=False)
+    print(f"Data saved to {output_filename}")
+
+    return df
+
+# Run the function to scrape from January 2023
+autoscrape_df = scrape_enforcement_actions(1, 2023)
+
+# Print results and check the earliest enforcement action
+print(f"Total enforcement actions scraped: {len(autoscrape_df)}")
+print("Earliest enforcement action scraped:")
+print(autoscrape_df.sort_values(by='Date').head(1))
+```
+
+In this function, we first gather all titles, dates, categories, and links for each enforcement action without immediately fetching agency names. This approach is more efficient because it minimizes the number of sequential HTTP requests. After creating the initial database, we loop through each article's link to retrieve the agency name separately.
 
 ```{python}
 
