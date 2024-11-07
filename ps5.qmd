@@ -325,7 +325,43 @@ print(autoscrape_df.sort_values(by='Date').head(1))
 ### 1. Plot the number of enforcement actions over time (PARTNER 2)
 
 ```{python}
+# Convert Date column to datetime format
+autoscrape_df["Date"] = pd.to_datetime(autoscrape_df["Date"], format="%B %d, %Y")
 
+# Extract year and month for grouping
+autoscrape_df["YearMonth"] = autoscrape_df["Date"].dt.to_period("M")
+
+# Aggregate by YearMonth
+monthly_count = autoscrape_df.groupby("YearMonth").size().reset_index(name="Count")
+
+# Convert YearMonth back to datetime for plotting
+monthly_count["YearMonth"] = monthly_count["YearMonth"].dt.to_timestamp()
+
+# Create the line chart with dots
+line_chart = alt.Chart(monthly_count).mark_line().encode(
+    alt.X(
+        'YearMonth:T',
+        title="Month-Year",
+        axis=alt.Axis(
+            format='%b %Y',
+            tickCount='year', 
+            grid=True 
+            )
+    ),
+    alt.Y('Count', title='Count')
+).properties(
+    title="Monthly Count of Enforcement Actions"
+)
+
+# Add points to indicate each data point on the line
+points = alt.Chart(monthly_count).mark_point(size=5, color='blue').encode(
+    x='YearMonth:T',
+    y='Count:Q'
+)
+
+# Combine line and points
+chart_with_dots = line_chart + points
+chart_with_dots
 ```
 
 ### 2. Plot the number of enforcement actions categorized: (PARTNER 1)
