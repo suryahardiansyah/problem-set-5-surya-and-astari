@@ -307,14 +307,17 @@ print(autoscrape_df.sort_values(by='Date').head(1))
 
 In this function, we first gather all titles, dates, categories, and links for each enforcement action without immediately fetching agency names. This approach is more efficient because it minimizes the number of sequential HTTP requests. After creating the initial database, we loop through each article's link to retrieve the agency name separately.
 
-```{python}
-
-```
 
 * c. Test Partner"s Code (PARTNER 1)
 
 ```{python}
+# Run the function to scrape from January 2021
+autoscrape_df = scrape_enforcement_actions(1, 2021)
 
+# Print results and check the earliest enforcement action
+print(f"Total enforcement actions scraped: {len(autoscrape_df)}")
+print("Earliest enforcement action scraped:")
+print(autoscrape_df.sort_values(by='Date').head(1))
 ```
 
 ## Step 3: Plot data based on scraped data
