@@ -369,13 +369,100 @@ chart_with_dots
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
 
 ```{python}
+# Filter for the relevant categories
+filtered_df = autoscrape_df[autoscrape_df["Category"].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
 
+# Aggregate by YearMonth and Category
+monthly_count = filtered_df.groupby(["YearMonth", "Category"]).size().reset_index(name="Count")
+
+# Convert YearMonth to datetime for plotting
+monthly_count["YearMonth"] = monthly_count["YearMonth"].dt.to_timestamp()
+
+# Create the line chart with separate lines for each category
+line_chart = alt.Chart(monthly_count).mark_line().encode(
+    x=alt.X(
+        'YearMonth:T',
+        title="Month-Year",
+        axis=alt.Axis(
+            format='%b %Y',  
+            tickCount='year',  
+            grid=True  
+        )
+    ),
+    y=alt.Y('Count:Q', title='Count'),
+    color=alt.Color('Category:N', title="Category") 
+).properties(
+    title="Monthly Count of Enforcement Actions by Category"
+)
+
+# Add points to indicate each data point on the line
+points = alt.Chart(monthly_count).mark_point(size=50).encode(
+    x='YearMonth:T',
+    y='Count:Q',
+    color='Category:N'  
+)
+
+# Combine line and points
+chart_with_dots = line_chart + points
+chart_with_dots
 ```
 
 * based on five topics
 
 ```{python}
+# Filter for the "Criminal and Civil Actions" category only
+filtered_df = autoscrape_df[autoscrape_df["Category"] == "Criminal and Civil Actions"]
 
+# Function to classify topics based on keywords in the title
+def classify_topic(title):
+    title = title.lower()
+    if "health" in title or "care" in title:
+        return "Health Care Fraud"
+    elif "financial" in title or "bank" in title:
+        return "Financial Fraud"
+    elif "drug" in title or "narcotic" in title:
+        return "Drug Enforcement"
+    elif "bribe" in title or "corruption" in title:
+        return "Bribery/Corruption"
+    else:
+        return "Other"
+
+# Apply the classification function to create a new Topic column
+filtered_df["Topic"] = filtered_df["Title"].apply(classify_topic)
+
+# Aggregate by YearMonth and Topic
+monthly_count = filtered_df.groupby(["YearMonth", "Topic"]).size().reset_index(name="Count")
+
+# Convert YearMonth to datetime for plotting
+monthly_count["YearMonth"] = monthly_count["YearMonth"].dt.to_timestamp()
+
+# Create the line chart with separate lines for each topic
+line_chart = alt.Chart(monthly_count).mark_line().encode(
+    x=alt.X(
+        'YearMonth:T',
+        title="Month-Year",
+        axis=alt.Axis(
+            format='%b %Y',  
+            tickCount='year',  
+            grid=True  
+        )
+    ),
+    y=alt.Y('Count:Q', title='Count'),
+    color=alt.Color('Topic:N', title="Topic") 
+).properties(
+    title="Monthly Count of Criminal and Civil Actions by Topic"
+)
+
+# Add points to indicate each data point on the line
+points = alt.Chart(monthly_count).mark_point(size=50).encode(
+    x='YearMonth:T',
+    y='Count:Q',
+    color='Topic:N'  
+)
+
+# Combine line and points
+chart_with_dots = line_chart + points
+chart_with_dots
 ```
 
 ## Step 4: Create maps of enforcement activity
@@ -383,7 +470,52 @@ chart_with_dots
 ### 1. Map by State (PARTNER 1)
 
 ```{python}
+import json
 
+# Read shapefile
+state_shp = gpd.read_file("cb_2018_us_state_500k.shp")
+
+# Prepare list of unique state names from state_shp
+state_list = state_shp["NAME"].unique()
+
+# Create a function to match each agency name with a state name
+def assign_state(agency):
+    for state in state_list:
+        if state in agency:
+            return state
+    return ""
+
+# Apply the function to the "Agency" column in autoscrape_df
+autoscrape_df["State"] = autoscrape_df["Agency"].apply(assign_state)
+
+# Calculate the number of enforcement actions per state
+state_counts = autoscrape_df["State"].value_counts().reset_index()
+state_counts.columns = ["State", "Count"]
+
+# Merge with state shapefile data
+state_shp_merged = state_shp.merge(state_counts, left_on="NAME", right_on="State", how="left").fillna(0)
+
+# Convert geometries to a simplified format and prepare for Altair
+state_shp_merged = state_shp_merged.to_crs("EPSG:4326")  # Convert to WGS84 for worldwide compatibility
+
+# https://medium.com/dataexplorations/creating-choropleth-maps-in-altair-eeb7085779a1
+# https://altair-viz.github.io/gallery/choropleth.html
+# Convert to GeoJSON and load as a dictionary
+geojson_data = json.loads(state_shp_merged.to_json())
+
+# Use Altair to create a choropleth map
+choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape().encode(
+    color=alt.Color("properties.Count:Q", title="Number of Enforcement Actions", scale=alt.Scale(scheme="blues")),
+    tooltip=["properties.NAME:N", "properties.Count:Q"]
+).project(
+    type="albersUsa"
+).properties(
+    title="Choropleth of Enforcement Actions by State",
+    width=400,
+    height=400
+)
+
+choropleth
 ```
 
 
