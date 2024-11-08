@@ -522,7 +522,48 @@ choropleth
 ### 2. Map by District (PARTNER 2)
 
 ```{python}
+# Read shapefiles
+district_shp = gpd.read_file("geo_export_c56ea527-1283-4852-8400-507244d1e4f5.shp")
 
+# Prepare list of unique district names from district_shp
+district_list = district_shp["judicial_d"].unique()
+
+# Create a function to match each agency name with a district name
+def assign_district(agency):
+    for district in district_list:
+        if district in agency:
+            return district
+    return ""
+
+# Apply the function to the "Agency" column in autoscrape_df
+autoscrape_df["District"] = autoscrape_df["Agency"].apply(assign_district)
+
+# Calculate the number of enforcement actions per district
+district_counts = autoscrape_df["District"].value_counts().reset_index()
+district_counts.columns = ["District", "Count"]
+
+# Merge with district shapefile data
+district_shp_merged = district_shp.merge(district_counts, left_on="judicial_d", right_on="District", how="left").fillna(0)
+
+# Convert geometries to a simplified format and prepare for Altair
+district_shp_merged = district_shp_merged.to_crs("EPSG:4326")  # Convert to WGS84 for worldwide compatibility
+
+# Convert to GeoJSON and load as a dictionary
+geojson_data = json.loads(district_shp_merged.to_json())
+
+# Use Altair to create a choropleth map
+choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape().encode(
+    color=alt.Color("properties.Count:Q", title="Number of Enforcement Actions", scale=alt.Scale(scheme="greens")),
+    tooltip=["properties.NAME:N", "properties.Count:Q"]
+).project(
+    type="albersUsa"
+).properties(
+    title="Choropleth of Enforcement Actions by district",
+    width=400,
+    height=400
+)
+
+choropleth
 ```
 
 ## Extra Credit
