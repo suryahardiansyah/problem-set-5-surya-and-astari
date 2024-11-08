@@ -624,4 +624,18 @@ district_enforcement["Ratio"]=district_enforcement["Count"]/district_enforcement
 
 # Merge distric_shp and distric_enforcement
 distric_shp_enforcement = district_shp.merge(district_enforcement, left_on="judicial_d", right_on="District", how="inner")
+
+#  Create a choropleth map of enforcement action ratios by district
+choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape().encode(
+    color=alt.Color("properties.Ratio:Q", title="Enforcement Action Ratio", scale=alt.Scale(scheme="reds")),
+    tooltip=["properties.judicial_d:N", "properties.Ratio:Q", "properties.Count:Q", "properties.Total Population:Q"]
+).project(
+    type="albersUsa"
+).properties(
+    title="Ratio of Enforcement Actions per Capita by US Attorney District",
+    width=400,
+    height=400
+)
+
+choropleth
 ```
