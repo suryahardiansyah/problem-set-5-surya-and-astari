@@ -126,6 +126,8 @@ print(df.head())
 ### 1. Turning the scraper into a function 
 
 * a. Pseudo-Code (PARTNER 2)
+
+
 ```
 DEFINE FUNCTION scrape_enforcement_actions(start_month, start_year)
 
@@ -191,28 +193,11 @@ WHILE True (this will keep going until we break out):
 
 In this way, we use a `while` loop to iterate through pages until we reach a stopping condition (either no more relevant data or data older than the start date). This structure allows us to handle the pages dynamically, stopping once we’ve collected all the needed data without requiring a predefined number of iterations.
 
-
 * b. Create Dynamic Scraper (PARTNER 2)
+
 ```{python}
 import time
 from datetime import datetime
-
-# Function to extract agency information from a given link
-def extract_agency_name(link):
-    response = requests.get(link)
-    soup = BeautifulSoup(response.text, 'lxml')
-    
-    # Find the div containing the action details
-    details_div = soup.find('div', class_="margin-top-5 padding-y-3 border-y-1px border-base-lighter")
-    if details_div:
-        # Find all <li> elements within the div
-        li_elements = details_div.find_all('li')
-        for li in li_elements:
-            # Check if the <li> contains 'Agency:' and extract the text after it
-            if 'Agency:' in li.get_text():
-                return li.get_text().replace('Agency:', '').strip()
-    
-    return 'N/A'
 
 # Function to scrape enforcement actions starting from a specific month/year
 def scrape_enforcement_actions(start_month, start_year):
@@ -230,7 +215,7 @@ def scrape_enforcement_actions(start_month, start_year):
     page = 1
     while True:
         url = f"https://oig.hhs.gov/fraud/enforcement/?page={page}"
-        print(f"Scraping {url}...")
+        #print(f"Scraping {url}...")
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'lxml')
 
@@ -282,7 +267,7 @@ def scrape_enforcement_actions(start_month, start_year):
         page += 1
         time.sleep(1)
 
-    # Second phase: Retrieve agency names
+    # Second phase: retrieve agency names using Partner 1's scraping function
     for entry in results:
         entry['Agency'] = extract_agency_name(entry['Link'])
 
@@ -307,7 +292,6 @@ print(autoscrape_df.sort_values(by='Date').head(1))
 
 In this function, we first gather all titles, dates, categories, and links for each enforcement action without immediately fetching agency names. This approach is more efficient because it minimizes the number of sequential HTTP requests. After creating the initial database, we loop through each article's link to retrieve the agency name separately.
 
-
 * c. Test Partner"s Code (PARTNER 1)
 
 ```{python}
@@ -319,6 +303,8 @@ print(f"Total enforcement actions scraped: {len(autoscrape_df)}")
 print("Earliest enforcement action scraped:")
 print(autoscrape_df.sort_values(by='Date').head(1))
 ```
+
+My partner's autoscrape code works in scraping and crawling the enforcement action details from January 2021 onward. It has 2,998 rows based on the title, date, category, link, and agency name for each enforcement action. 
 
 ## Step 3: Plot data based on scraped data
 
@@ -364,6 +350,8 @@ chart_with_dots = line_chart + points
 chart_with_dots
 ```
 
+The line chart reveals the monthly count of Enforcement Actions, with periodic peaks and troughs. There is a consistent pattern of variation where some months showing spikes, while other months dip lower. The sharp decline toward the end of the timeline might suggests incomplete data for the most recent months.
+
 ### 2. Plot the number of enforcement actions categorized: (PARTNER 1)
 
 * based on "Criminal and Civil Actions" vs. "State Enforcement Agencies"
@@ -406,6 +394,8 @@ points = alt.Chart(monthly_count).mark_point(size=50).encode(
 chart_with_dots = line_chart + points
 chart_with_dots
 ```
+
+The chart shows that the Criminal and Civil Actions consistently having higher monthly counts (around 20-50 actions per month) than State Enforcement Agencies (around 5-20 actions per month). This difference highlights that federal criminal and civil cases are generally more frequent than state-enforced action over observation period. Both categories shows a sharp drop in the most recent months, which could indicate incomplete data or a real decrease in enforcement actions. 
 
 * based on five topics
 
@@ -470,7 +460,7 @@ chart_with_dots
 ### 1. Map by State (PARTNER 1)
 
 ```{python}
-import json
+import geopandas as gpd
 
 # Read shapefile
 state_shp = gpd.read_file("cb_2018_us_state_500k.shp")
@@ -500,13 +490,10 @@ state_shp_merged = state_shp_merged.to_crs("EPSG:4326")  # Convert to WGS84 for 
 
 # https://medium.com/dataexplorations/creating-choropleth-maps-in-altair-eeb7085779a1
 # https://altair-viz.github.io/gallery/choropleth.html
-# Convert to GeoJSON and load as a dictionary
-geojson_data = json.loads(state_shp_merged.to_json())
-
 # Use Altair to create a choropleth map
-choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape().encode(
-    color=alt.Color("properties.Count:Q", title="Number of Enforcement Actions", scale=alt.Scale(scheme="blues")),
-    tooltip=["properties.NAME:N", "properties.Count:Q"]
+choropleth = alt.Chart(state_shp_merged).mark_geoshape().encode(
+    color=alt.Color("Count:Q", title="Number of Enforcement Actions", scale=alt.Scale(scheme="blues")),
+    tooltip=["NAME:N", "Count:Q"]
 ).project(
     type="albersUsa"
 ).properties(
@@ -517,7 +504,6 @@ choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape(
 
 choropleth
 ```
-
 
 ### 2. Map by District (PARTNER 2)
 
@@ -548,13 +534,10 @@ district_shp_merged = district_shp.merge(district_counts, left_on="judicial_d", 
 # Convert geometries to a simplified format and prepare for Altair
 district_shp_merged = district_shp_merged.to_crs("EPSG:4326")  # Convert to WGS84 for worldwide compatibility
 
-# Convert to GeoJSON and load as a dictionary
-geojson_data = json.loads(district_shp_merged.to_json())
-
 # Use Altair to create a choropleth map
-choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape().encode(
-    color=alt.Color("properties.Count:Q", title="Number of Enforcement Actions", scale=alt.Scale(scheme="greens")),
-    tooltip=["properties.NAME:N", "properties.Count:Q"]
+choropleth = alt.Chart(district_shp_merged).mark_geoshape().encode(
+    color=alt.Color("Count:Q", title="Number of Enforcement Actions", scale=alt.Scale(scheme="greens")),
+    tooltip=["NAME:N", "Count:Q"]
 ).project(
     type="albersUsa"
 ).properties(
@@ -625,10 +608,10 @@ district_enforcement["Ratio"]=district_enforcement["Count"]/district_enforcement
 # Merge distric_shp and distric_enforcement
 distric_shp_enforcement = district_shp.merge(district_enforcement, left_on="judicial_d", right_on="District", how="inner")
 
-#  Create a choropleth map of enforcement action ratios by district
-choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape().encode(
-    color=alt.Color("properties.Ratio:Q", title="Enforcement Action Ratio", scale=alt.Scale(scheme="reds")),
-    tooltip=["properties.judicial_d:N", "properties.Ratio:Q", "properties.Count:Q", "properties.Total Population:Q"]
+# Create a choropleth map of enforcement action ratios by district
+choropleth = alt.Chart(distric_shp_enforcement).mark_geoshape().encode(
+    color=alt.Color("Ratio:Q", title="Enforcement Action Ratio", scale=alt.Scale(scheme="reds")),
+    tooltip=["judicial_d:N", "Ratio:Q", "Count:Q", "Total Population:Q"]
 ).project(
     type="albersUsa"
 ).properties(
@@ -639,3 +622,5 @@ choropleth = alt.Chart(alt.Data(values=geojson_data['features'])).mark_geoshape(
 
 choropleth
 ```
+
+The choropleth map illustrates the ratio of enforcement actions per capita for each U.S. Attorney District by dividing the total number of actions since January 2021 by districts population. Some districts in smaller population like Montana, South Dakota, and Iowa show higher ratios despite having fewer absolute actions. The New Mexico and Eastern Oklahoma are shaded in white, this absence could suggest that data for these districts might be incomplete or missing. This discrepancy occured due to lack of "Agency" information in the "Action Details" in New Mexico enforcement actions webpage, resulting in this district appearing as if they had zero enforcement actions per capita. However, for the Eastern District of Oklahoma, the polygon appeared purely white because there is no enforcement actions data in the OIG website. 
