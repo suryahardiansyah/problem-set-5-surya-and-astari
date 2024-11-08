@@ -570,15 +570,58 @@ choropleth
 
 ### 1. Merge zip code shapefile with population
 ```{python}
+# Read shapefile and csv
+zip_shp = gpd.read_file("gz_2010_us_860_00_500k.shp")
+zip_pop = pd.read_csv("DECENNIALDHC2020.P1-Data.csv")
 
+# Clean up the `NAME` column in zip_pop to only contain ZIP codes
+zip_pop["ZIP"] = zip_pop["NAME"].str.replace("ZCTA5 ", "", regex=False)
+
+# Merge the data on ZIP codes
+zip_shp_merged = zip_shp.merge(zip_pop, left_on="ZCTA5", right_on="ZIP", how="inner")
+
+# Inspect the merged data
+print(zip_shp_merged.head())
 ```
 
 ### 2. Conduct spatial join
 ```{python}
+# Convert district_shp's CRS into zip_shp_merged's CRS 
+district_shp = district_shp.to_crs(zip_shp_merged.crs)
 
+# Perform a spatial join between zip_shp_merged and district_shp using sjoin
+zip_district_joined = gpd.sjoin(
+    zip_shp_merged,
+    district_shp,
+    how="inner",
+    predicate="intersects"
+)
+
+# Ensure the data type of population
+zip_district_joined["P1_001N"]=zip_district_joined["P1_001N"].astype(int)
+
+# Aggregate population by district
+district_population = zip_district_joined.groupby("judicial_d")["P1_001N"].sum().reset_index()
+
+# Rename columns for clarity
+district_population.columns = ["District", "Total Population"]
+
+# Display the result
+print(district_population.head())
 ```
 
 ### 3. Map the action ratio in each district
 ```{python}
+# Merge district_counts with district_population
+district_enforcement = district_counts.merge(district_population, on="District", how="inner")
 
+# Latest autoscrape_df contains data from January 2021
+# Data in district_counts is the aggregated number of enforcements in autoscrape_df by district 
+# Aggregating the number of enforcement actions since January 2021 per district (has been done in the district_counts)
+
+# Get the enforcement ratio (number of enforcement per dpopulation) of each district
+district_enforcement["Ratio"]=district_enforcement["Count"]/district_enforcement["Total Population"]
+
+# Merge distric_shp and distric_enforcement
+distric_shp_enforcement = district_shp.merge(district_enforcement, left_on="judicial_d", right_on="District", how="inner")
 ```
