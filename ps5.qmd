@@ -1,7 +1,7 @@
 ---
 title: "30538 Problem Set 5: Web Scraping"
 author: "Surya Hardiansyah and Astari Raihanah"
-date: "today"
+date: "2024-11-08"
 format: 
   pdf:
     include-in-header: 
@@ -215,7 +215,7 @@ def scrape_enforcement_actions(start_month, start_year):
     page = 1
     while True:
         url = f"https://oig.hhs.gov/fraud/enforcement/?page={page}"
-        #print(f"Scraping {url}...")
+        print(f"Scraping {url}...")
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'lxml')
 
@@ -280,31 +280,53 @@ def scrape_enforcement_actions(start_month, start_year):
     print(f"Data saved to {output_filename}")
 
     return df
+```
 
+```{python}
+#| eval: false
 # Run the function to scrape from January 2023
 autoscrape_df = scrape_enforcement_actions(1, 2023)
+```
+
+We scraped our data on November 8th
+```{python}
+# Substitute with scrape_enforcement_actions(1, 2023) result for faster knitting
+file202301 = pd.read_csv("enforcement_actions_2023_1.csv")
+
+# Convert 'Date' column to datetime format
+file202301["Date"] = pd.to_datetime(file202301["Date"])
 
 # Print results and check the earliest enforcement action
-print(f"Total enforcement actions scraped: {len(autoscrape_df)}")
+print(f"Total enforcement actions scraped: {len(file202301)}")
 print("Earliest enforcement action scraped:")
-print(autoscrape_df.sort_values(by='Date').head(1))
+print(file202301.sort_values(by='Date').head(1))
 ```
 
 In this function, we first gather all titles, dates, categories, and links for each enforcement action without immediately fetching agency names. This approach is more efficient because it minimizes the number of sequential HTTP requests. After creating the initial database, we loop through each article's link to retrieve the agency name separately.
 
-* c. Test Partner"s Code (PARTNER 1)
+We scraped our data on November 8th. My partner's autoscrape code works in scraping and crawling the enforcement action details from January 2023 onward. It has 1,533 rows based on the title, date, category, link, and agency name for each enforcement action. "Podiatrist Pays $90,000 To Settle False Billin..." is the earliest data from January 3rd, 2023.
 
+* c. Test Partner"s Code (PARTNER 1)
 ```{python}
+#| eval: false
 # Run the function to scrape from January 2021
 autoscrape_df = scrape_enforcement_actions(1, 2021)
-
-# Print results and check the earliest enforcement action
-print(f"Total enforcement actions scraped: {len(autoscrape_df)}")
-print("Earliest enforcement action scraped:")
-print(autoscrape_df.sort_values(by='Date').head(1))
 ```
 
-My partner's autoscrape code works in scraping and crawling the enforcement action details from January 2021 onward. It has 2,998 rows based on the title, date, category, link, and agency name for each enforcement action. 
+We scraped our data on November 8th
+```{python}
+# Substitute with scrape_enforcement_actions(1, 2021) result for faster knitting
+file202101 = pd.read_csv("enforcement_actions_2021_1.csv")
+
+# Convert 'Date' column to datetime format
+file202101["Date"] = pd.to_datetime(file202101["Date"])
+
+# Print results and check the earliest enforcement action
+print(f"Total enforcement actions scraped: {len(file202101)}")
+print("Earliest enforcement action scraped:")
+print(file202101.sort_values(by='Date').head(1))
+```
+We scraped our data on November 8th. My partner's autoscrape code works in scraping and crawling the enforcement action details from January 2021 onward. It has 3,021 rows based on the title, date, category, link, and agency name for each enforcement action. "The United States And Tennessee Resolve Claims..." is the earliest data from January 4th, 2021.
 
 ## Step 3: Plot data based on scraped data
 
@@ -312,13 +334,13 @@ My partner's autoscrape code works in scraping and crawling the enforcement acti
 
 ```{python}
 # Convert Date column to datetime format
-autoscrape_df["Date"] = pd.to_datetime(autoscrape_df["Date"], format="%B %d, %Y")
+file202101["Date"] = pd.to_datetime(file202101["Date"], format="%B %d, %Y")
 
 # Extract year and month for grouping
-autoscrape_df["YearMonth"] = autoscrape_df["Date"].dt.to_period("M")
+file202101["YearMonth"] = file202101["Date"].dt.to_period("M")
 
 # Aggregate by YearMonth
-monthly_count = autoscrape_df.groupby("YearMonth").size().reset_index(name="Count")
+monthly_count = file202101.groupby("YearMonth").size().reset_index(name="Count")
 
 # Convert YearMonth back to datetime for plotting
 monthly_count["YearMonth"] = monthly_count["YearMonth"].dt.to_timestamp()
@@ -358,7 +380,7 @@ The line chart reveals the monthly count of Enforcement Actions, with periodic p
 
 ```{python}
 # Filter for the relevant categories
-filtered_df = autoscrape_df[autoscrape_df["Category"].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
+filtered_df = file202101[file202101["Category"].isin(["Criminal and Civil Actions", "State Enforcement Agencies"])]
 
 # Aggregate by YearMonth and Category
 monthly_count = filtered_df.groupby(["YearMonth", "Category"]).size().reset_index(name="Count")
@@ -401,7 +423,7 @@ The chart shows that the Criminal and Civil Actions consistently having higher m
 
 ```{python}
 # Filter for the "Criminal and Civil Actions" category only
-filtered_df = autoscrape_df[autoscrape_df["Category"] == "Criminal and Civil Actions"]
+filtered_df = file202101[file202101["Category"] == "Criminal and Civil Actions"]
 
 # Function to classify topics based on keywords in the title
 def classify_topic(title):
@@ -474,12 +496,15 @@ def assign_state(agency):
         if state in agency:
             return state
     return ""
+    
+# Ensure 'Agency' column has no NaN values by filling them with an empty string
+file202101["Agency"] = file202101["Agency"].fillna("")
 
-# Apply the function to the "Agency" column in autoscrape_df
-autoscrape_df["State"] = autoscrape_df["Agency"].apply(assign_state)
+# Apply the function to the "Agency" column in file202101
+file202101["State"] = file202101["Agency"].apply(assign_state)
 
 # Calculate the number of enforcement actions per state
-state_counts = autoscrape_df["State"].value_counts().reset_index()
+state_counts = file202101["State"].value_counts().reset_index()
 state_counts.columns = ["State", "Count"]
 
 # Merge with state shapefile data
@@ -521,11 +546,11 @@ def assign_district(agency):
             return district
     return ""
 
-# Apply the function to the "Agency" column in autoscrape_df
-autoscrape_df["District"] = autoscrape_df["Agency"].apply(assign_district)
+# Apply the function to the "Agency" column in file202101
+file202101["District"] = file202101["Agency"].apply(assign_district)
 
 # Calculate the number of enforcement actions per district
-district_counts = autoscrape_df["District"].value_counts().reset_index()
+district_counts = file202101["District"].value_counts().reset_index()
 district_counts.columns = ["District", "Count"]
 
 # Merge with district shapefile data
@@ -598,8 +623,8 @@ print(district_population.head())
 # Merge district_counts with district_population
 district_enforcement = district_counts.merge(district_population, on="District", how="inner")
 
-# Latest autoscrape_df contains data from January 2021
-# Data in district_counts is the aggregated number of enforcements in autoscrape_df by district 
+# Latest file202101 contains data from January 2021
+# Data in district_counts is the aggregated number of enforcements in file202101 by district 
 # Aggregating the number of enforcement actions since January 2021 per district (has been done in the district_counts)
 
 # Get the enforcement ratio (number of enforcement per dpopulation) of each district
@@ -623,4 +648,7 @@ choropleth = alt.Chart(distric_shp_enforcement).mark_geoshape().encode(
 choropleth
 ```
 
+```{python}
+
+```
 The choropleth map illustrates the ratio of enforcement actions per capita for each U.S. Attorney District by dividing the total number of actions since January 2021 by districts population. Some districts in smaller population like Montana, South Dakota, and Iowa show higher ratios despite having fewer absolute actions. The New Mexico and Eastern Oklahoma are shaded in white, this absence could suggest that data for these districts might be incomplete or missing. This discrepancy occured due to lack of "Agency" information in the "Action Details" in New Mexico enforcement actions webpage, resulting in this district appearing as if they had zero enforcement actions per capita. However, for the Eastern District of Oklahoma, the polygon appeared purely white because there is no enforcement actions data in the OIG website. 
